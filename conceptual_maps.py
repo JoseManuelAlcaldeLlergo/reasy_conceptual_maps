@@ -19,7 +19,7 @@ import click
 
 
 @click.command()
-@click.option('--data', '-d', default='data/input2.txt', required=False, show_default=True,
+@click.option('--data', '-d', default='data/input.txt', required=False, show_default=True,
               help=u'Input text file route')
 def run_conceptual_maps(data):
 
@@ -124,7 +124,7 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
     title_node_id = 's_'+str(i_sec)
     dict_nodes_idNodes[sec_title] = title_node_id
     dict_idNodes_relations[title_node_id] = []
-
+    
     nlp = spacy.load('en_core_web_trf')
 
     for sentence in en_sentences:
