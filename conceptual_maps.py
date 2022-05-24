@@ -55,8 +55,6 @@ def run_conceptual_maps(data):
         # The title of the section should be the first word in the list
         sec_title = sentences[0]
 
-        # print(sentences)
-
         translations = []
 
         # Splitting the text into sentences we ensure not reaching the character limit of Google Translator
@@ -73,19 +71,19 @@ def run_conceptual_maps(data):
         resolved_doc = full_translation
         # print(len(resolved_doc.split()))
         print('Summarizing text...')
-        summarize = bert_summarizer(
-            resolved_doc, ratio=0.2)  # Specified with ratio
+        # Summarizing to a 20% of the original
+        summarize = bert_summarizer(resolved_doc, ratio=0.2)
 
         # Splitting English summarized text
-        tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-
-        en_sentences = tokenizer.tokenize(summarize)
-
+        en_sentences = split_text(summarize, 'en')
+        
+        # Filling dictionaries for composing the map
         dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations = obtaining_nodes_relations(
             sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations)
 
         i_sec += 1
 
+    # Generating an output to check nodes and relations are correct
     generate_simple_map(detected_lang, dict_idNodes_nodes,
                         dict_idNodes_relations, dict_idRealtions_relations)
 
