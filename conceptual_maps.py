@@ -13,7 +13,6 @@ import nltk.data
 # from deep_translator import DeeplTranslator
 from deep_translator import GoogleTranslator
 
-
 import click
 
 # CLI parameters
@@ -23,6 +22,16 @@ import click
 @click.option('--data', '-d', default='data/input.txt', required=False, show_default=True,
               help=u'Input text file route')
 def run_conceptual_maps(data):
+
+    dict_idNodes_nodes = {}
+    dict_idNodes_relations = {}
+    dict_idRealtions_relations = {}
+
+    # Title of the map (ask to user?)
+    origin_name = 'ORIGIN'
+    dict_idNodes_nodes['ORIGIN'] = origin_name
+    dict_idNodes_relations['ORIGIN'] = []
+
     f = open(data)
 
     sections = f.readlines()
@@ -33,6 +42,11 @@ def run_conceptual_maps(data):
 
     i_sec = 0
     for input in sections:
+
+        # Link origin with the section node
+        title_node_id = 's_'+str(i_sec)
+        dict_idNodes_relations['ORIGIN'].append(title_node_id)
+        dict_idRealtions_relations[('ORIGIN',title_node_id)] = ''
 
         detected_lang = detect(input)
 
@@ -97,12 +111,13 @@ def run_conceptual_maps(data):
         # print ('\n-----\n'.join(tokenizer.tokenize(summarize)))
 
         dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations = obtaining_nodes_relations(
-            sec_title, i_sec, en_sentences)
+            sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations)
 
-        generate_simple_map(detected_lang, dict_idNodes_nodes,
-                            dict_idNodes_relations, dict_idRealtions_relations)
 
         i_sec += 1
+    
+    generate_simple_map(detected_lang, dict_idNodes_nodes,
+                        dict_idNodes_relations, dict_idRealtions_relations)
 
 
 def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations):
@@ -116,10 +131,10 @@ def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relation
                     source='auto', target=detected_lang).translate(relation_name), ']-->', GoogleTranslator(source='auto', target=detected_lang).translate(node_dst))
 
 
-def obtaining_nodes_relations(sec_title, i_sec, en_sentences):
+def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations):
     dict_nodes_idNodes = {}
-    dict_idNodes_relations = {}
-    dict_idRealtions_relations = {}
+    # dict_idNodes_relations = {}
+    # dict_idRealtions_relations = {}
     # dict_idRealtions_verb = {}
 
     id = 0
@@ -188,8 +203,10 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences):
         # print("prep: ",get_prepositional_phrase_objs(doc))
 
     # Change values for keys and stores in a new dictionary
-    dict_idNodes_nodes = dict((v, k) for k, v in dict_nodes_idNodes.items())
-    print(dict_idNodes_nodes)# print(dict_nodes_idNodes.keys())
+    # dict_idNodes_nodes = dict((v, k) for k, v in dict_nodes_idNodes.items())
+    for k, v in dict_nodes_idNodes.items():
+        dict_idNodes_nodes[v] = k
+    # print(dict_idNodes_nodes)# print(dict_nodes_idNodes.keys())
     # print(dict_idNodes_relations)
     # print(dict_idRealtions_relations)
     # print(dict_idRealtions_verb)
