@@ -41,19 +41,22 @@ def run_conceptual_maps(data):
     nltk.download('punkt')
 
     i_sec = 0
-    for input in sections:
+    for sec in sections:
+
 
         # Link origin with the section node
         title_node_id = 's_'+str(i_sec)
         dict_idNodes_relations['ORIGIN'].append(title_node_id)
         dict_idRealtions_relations[('ORIGIN', title_node_id)] = ''
 
-        detected_lang = detect(input)
+        detected_lang = detect(sec)
 
-        sentences = split_text(input, detected_lang)
+        sentences = split_text(sec, detected_lang)
 
         # The title of the section should be the first word in the list
         sec_title = sentences[0]
+        
+        print('--------',sec_title,'--------')
 
         translations = []
 
