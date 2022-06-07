@@ -5,4 +5,4 @@ deep-translator
 nltk
 torch
 sacremoses
-
+pytextrank

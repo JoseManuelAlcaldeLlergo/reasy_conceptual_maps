@@ -1,13 +1,9 @@
 from time import time
 import spacy
-# from pytextrank import TextRank
-from collections import Counter
-from string import punctuation
 
 
-
-# Library to implement BERT
-from summarizer import Summarizer
+# Library to extract keywords
+import pytextrank
 
 from langdetect import detect, detect_langs
 
@@ -21,6 +17,14 @@ from deep_translator import GoogleTranslator
 import click
 
 # CLI parameters
+
+
+
+
+## TENGO QUE HACER LO MISMO PERO ME SALTO EL SUMMARIZE Y TENGO QUE HACER UN ESQUEMA QUE 
+# LOS NODOS SEAN LAS KEYWORD (CREO QUE SOLO UNA POR SECCION) DE LAS SECCIONES
+
+
 
 @click.command()
 @click.option('--data', '-d', default='data/input.txt', required=False, show_default=True,
@@ -64,20 +68,14 @@ def run_conceptual_maps(data):
 
         translations = []
 
+        tic = time()
         # Splitting the text into sentences we ensure not reaching the character limit of Google Translator
         print('Translating text into English...')
-        tic = time()
-        
-        # If we would work with so long sections we should translate sentence by sentence
         # for sent in sentences[1:]:  # [1:] because we don't need to translate the title
         #     translations.append(GoogleTranslator(
         #         source='auto', target='en').translate(sent))
-
         # full_translation = " ".join(
         #     w for word in translations for w in word.split())
-
-        # However it seems that with the current idea sections are not so long, and translating th whole text is
-        # quite faster
 
         sec_text = " ".join(w for word in sentences[1:] for w in word.split())
         full_translation = GoogleTranslator(source='auto', target='en').translate(sec)
@@ -85,71 +83,17 @@ def run_conceptual_maps(data):
         print('Translation time: {} s'.format(round(time()-tic,3)))
 
         tic = time()
-        # bert_summarizer = Summarizer()
-
-        resolved_doc = full_translation
-        # print(len(resolved_doc.split()))
-        print('Summarizing text...')
-        # Summarizing to a 20% of the original
-        # summarize = bert_summarizer(resolved_doc, ratio=0.2)
-        # summarize = summarize_text(resolved_doc)
-        summarize = top_sentence(resolved_doc,5)
+        get_keywords(full_translation)
+        print('Keywords extraction time: {} s'.format(round(time()-tic,3)))
 
 
-
-        print('Summarization time: {} s'.format(round(time()-tic,3)))
-
-        # Splitting English summarized text
-        en_sentences = split_text(summarize, 'en')
-        
-        # Filling dictionaries for composing the map
-        dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations = obtaining_nodes_relations(
-            sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations)
 
         i_sec += 1
 
     # Generating an output to check nodes and relations are correct
-    generate_simple_map(detected_lang, dict_idNodes_nodes,
-                        dict_idNodes_relations, dict_idRealtions_relations)
+    # generate_simple_map(detected_lang, dict_idNodes_nodes,
+    #                     dict_idNodes_relations, dict_idRealtions_relations)
 
-
-def summarize_text(text):
-    nlp = spacy.load('en_core_web_trf')
-
-    tr = TextRank()
-    nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
-
-    doc = nlp(text)
-
-    sent_bounds = [ [s.start, s.end, set([])] for s in doc.sents ]
-
-    limit_phrases = 4
-
-    phrase_id = 0
-    unit_vector = []
-
-    for p in doc._.phrases:
-        print(phrase_id, p.text, p.rank)
-        
-        unit_vector.append(p.rank)
-        
-        for chunk in p.chunks:
-            print(" ", chunk.start, chunk.end)
-            
-            for sent_start, sent_end, sent_vector in sent_bounds:
-                if chunk.start >= sent_start and chunk.start <= sent_end:
-                    print(" ", sent_start, chunk.start, chunk.end, sent_end)
-                    sent_vector.add(phrase_id)
-                    break
-
-        phrase_id += 1
-
-        if phrase_id == limit_phrases:
-            break
-
-    for sent in doc.sents:
-        print(sent)
-    return text
 
 def split_text(text, lang):
     if lang == 'es':
@@ -315,44 +259,16 @@ def print_token_dependences(doc):
     for token in doc:
         print(token.text, token.dep_, token.pos)
 
-def top_sentence(text, limit):
-    nlp = spacy.load('en_core_web_trf')
-    keyword = []
-    pos_tag = ['PROPN', 'ADJ', 'NOUN', 'VERB']
-    doc = nlp(text.lower())
-    for token in doc:
-        if(token.text in nlp.Defaults.stop_words or token.text in punctuation):
-            continue
-        if(token.pos_ in pos_tag):
-            keyword.append(token.text)
-    
-    freq_word = Counter(keyword)
-    max_freq = Counter(keyword).most_common(1)[0][1]
-    for w in freq_word:
-        freq_word[w] = (freq_word[w]/max_freq)
-        
-    sent_strength={}
-    for sent in doc.sents:
-        for word in sent:
-            if word.text in freq_word.keys():
-                if sent in sent_strength.keys():
-                    sent_strength[sent]+=freq_word[word.text]
-                else:
-                    sent_strength[sent]=freq_word[word.text]
-    
-    summary = []
-    
-    sorted_x = sorted(sent_strength.items(), key=lambda kv: kv[1], reverse=True)
-    
-    counter = 0
-    for i in range(len(sorted_x)):
-        summary.append(str(sorted_x[i][0]).capitalize())
-
-        counter += 1
-        if(counter >= limit):
-            break
-            
-    return ' '.join(summary)
+def get_keywords(text):
+    text = text.lower()
+    # load a spaCy model, depending on language, scale, etc.
+    nlp = spacy.load("en_core_web_trf")
+    # add PyTextRank to the spaCy pipeline
+    nlp.add_pipe("textrank")
+    doc = nlp(text)
+    # examine the top-ranked phrases in the document
+    for phrase in doc._.phrases[:10]:
+        print(phrase.text)
 
 
 if __name__ == '__main__':
