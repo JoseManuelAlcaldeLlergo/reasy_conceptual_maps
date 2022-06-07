@@ -96,7 +96,6 @@ def run_conceptual_maps(data):
         summarize = top_sentence(resolved_doc,5)
 
 
-
         print('Summarization time: {} s'.format(round(time()-tic,3)))
 
         # Splitting English summarized text
