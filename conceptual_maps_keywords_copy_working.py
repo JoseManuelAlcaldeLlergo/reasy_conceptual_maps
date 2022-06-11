@@ -1,5 +1,3 @@
-from collections import Counter
-from string import punctuation
 from time import time
 import spacy
 
@@ -23,6 +21,10 @@ import click
 
 
 
+## TENGO QUE HACER LO MISMO PERO ME SALTO EL SUMMARIZE Y TENGO QUE HACER UN ESQUEMA QUE 
+# LOS NODOS SEAN LAS KEYWORD (CREO QUE SOLO UNA POR SECCION) DE LAS SECCIONES
+
+
 
 @click.command()
 @click.option('--data', '-d', default='data/input.txt', required=False, show_default=True,
@@ -31,11 +33,12 @@ def run_conceptual_maps(data):
 
     dict_idNodes_nodes = {}
     dict_idNodes_relations = {}
+    dict_idRealtions_relations = {}
 
     # Title of the map (ask to user?)
     origin_name = 'ORIGIN'
     dict_idNodes_nodes['ORIGIN'] = origin_name
-    dict_idNodes_relations['ORIGIN'] = [[],'']
+    dict_idNodes_relations['ORIGIN'] = []
 
     f = open(data)
 
@@ -51,7 +54,8 @@ def run_conceptual_maps(data):
 
         # Link origin with the section node
         title_node_id = 's_'+str(i_sec)
-        dict_idNodes_relations['ORIGIN'][0].append(title_node_id)
+        dict_idNodes_relations['ORIGIN'].append(title_node_id)
+        dict_idRealtions_relations[('ORIGIN', title_node_id)] = ''
 
         detected_lang = detect(sec)
 
@@ -64,20 +68,14 @@ def run_conceptual_maps(data):
 
         translations = []
 
+        tic = time()
         # Splitting the text into sentences we ensure not reaching the character limit of Google Translator
         print('Translating text into English...')
-        tic = time()
-        
-        # If we would work with so long sections we should translate sentence by sentence
         # for sent in sentences[1:]:  # [1:] because we don't need to translate the title
         #     translations.append(GoogleTranslator(
         #         source='auto', target='en').translate(sent))
-
         # full_translation = " ".join(
         #     w for word in translations for w in word.split())
-
-        # However it seems that with the current idea sections are not so long, and translating th whole text is
-        # quite faster
 
         sec_text = " ".join(w for word in sentences[1:] for w in word.split())
         full_translation = GoogleTranslator(source='auto', target='en').translate(sec)
@@ -85,32 +83,17 @@ def run_conceptual_maps(data):
         print('Translation time: {} s'.format(round(time()-tic,3)))
 
         tic = time()
-        # bert_summarizer = Summarizer()
-
-        resolved_doc = full_translation
-        # print(len(resolved_doc.split()))
-        print('Summarizing text...')
-        # Summarizing to a 20% of the original
-        # summarize = bert_summarizer(resolved_doc, ratio=0.2)
-        # summarize = summarize_text(resolved_doc)
-        # Summarizing to 3 sentences from the original
-        summarize = top_sentence(resolved_doc,3)
+        get_keywords(full_translation)
+        print('Keywords extraction time: {} s'.format(round(time()-tic,3)))
 
 
-        print('Summarization time: {} s'.format(round(time()-tic,3)))
-
-        # Splitting English summarized text
-        en_sentences = split_text(summarize, 'en')
-        
-        # Filling dictionaries for composing the map
-        dict_idNodes_nodes, dict_idNodes_relations = obtaining_nodes_relations_keywords(
-            sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations)
 
         i_sec += 1
 
     # Generating an output to check nodes and relations are correct
-    generate_simple_map(detected_lang, dict_idNodes_nodes,
-                        dict_idNodes_relations)
+    # generate_simple_map(detected_lang, dict_idNodes_nodes,
+    #                     dict_idNodes_relations, dict_idRealtions_relations)
+
 
 def split_text(text, lang):
     if lang == 'es':
@@ -127,18 +110,18 @@ def split_text(text, lang):
     return sentences
 
 
-def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relations):
+def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations):
     for k, v in dict_idNodes_relations.items():
-        for i in range(len(v[0])):
-            if str(dict_idNodes_nodes[v[0][i]]) != "":
+        for i in range(len(v)):
+            if str(dict_idNodes_nodes[v[i]]) != "":
                 node_src = str(dict_idNodes_nodes[k])
-                relation_name = str(v[1])
-                node_dst = str(dict_idNodes_nodes[v[0][i]])
+                relation_name = str(dict_idRealtions_relations[(k, v[i])])
+                node_dst = str(dict_idNodes_nodes[v[i]])
                 print('\n', GoogleTranslator(source='auto', target=detected_lang).translate(node_src), '--[', GoogleTranslator(
                     source='auto', target=detected_lang).translate(relation_name), ']-->', GoogleTranslator(source='auto', target=detected_lang).translate(node_dst))
 
 
-def obtaining_nodes_relations_keywords(sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations):
+def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations):
     dict_nodes_idNodes = {}
 
     id = 0
@@ -147,44 +130,53 @@ def obtaining_nodes_relations_keywords(sec_title, i_sec, en_sentences, dict_idNo
     # Create the source node of the section.
     title_node_id = 's_'+str(i_sec)
     dict_nodes_idNodes[sec_title] = title_node_id
-    dict_idNodes_relations[title_node_id] = [[],'']
+    dict_idNodes_relations[title_node_id] = []
     
     nlp = spacy.load('en_core_web_trf')
 
     for sentence in en_sentences:
+        doc = nlp(sentence)
 
-        # Each new keyword could be a new node
-        source_node = get_main_keyword(sentence)
-        
+        # Each new subject will be a new node
+        subject_phrase = get_subject_phrase(doc)
 
-        # the same keyword could be in different sentences, but we should be keep in
+        # the same subject could be in different sentences, but we should be keep in
         # mind that it would still be the same node but with several relationships
-        if not source_node in dict_nodes_idNodes:
-            source_node_id = title_node_id+'_n_'+str(id)
+        if not subject_phrase in dict_nodes_idNodes:
+            new_node_id = title_node_id+'_n_'+str(id)
             # Add the node to the node dict
-            dict_nodes_idNodes[source_node] = source_node_id
+            dict_nodes_idNodes[subject_phrase] = new_node_id
             # Connect the new node with the source section node
-            dict_idNodes_relations[title_node_id][0].append(source_node_id)
+            dict_idNodes_relations[title_node_id].append(new_node_id)
+            # Naming the relation as ''
+            dict_idRealtions_relations[(title_node_id, new_node_id)] = ''
             id += 1
 
-        dest_node = sentence
-        if not dest_node in dict_nodes_idNodes:
-            dict_nodes_idNodes[dest_node] = title_node_id+'_n_'+str(id)
+        # The second node obtained from the sentence would be composed by the rest of
+        # the sentence meaning (not exactly the predicate)
+        object_phrase = get_predicate(doc)
+        if not object_phrase in dict_nodes_idNodes:
+            dict_nodes_idNodes[object_phrase] = title_node_id+'_n_'+str(id)
             id += 1
 
-        if not (dict_nodes_idNodes[source_node] in dict_idNodes_relations):
-            dict_idNodes_relations[dict_nodes_idNodes[source_node]] = [[],'']
+        if not (dict_nodes_idNodes[subject_phrase] in dict_idNodes_relations):
+            dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]] = []
 
-        dict_idNodes_relations[dict_nodes_idNodes[source_node]][0].append(
-            dict_nodes_idNodes[dest_node])
+        dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]].append(
+            dict_nodes_idNodes[object_phrase])
+        current_rel = "r_"+str(id_relations)
 
-        id = id + 1
+        root, root_position_start = get_verb_and_auxs(doc)
+        dict_idRealtions_relations[(
+            dict_nodes_idNodes[subject_phrase], dict_nodes_idNodes[object_phrase])] = root
 
+        id_relations += 1
+
+    # Change values for keys and stores in a new dictionary
     for k, v in dict_nodes_idNodes.items():
         dict_idNodes_nodes[v] = k
-        
 
-    return dict_idNodes_nodes, dict_idNodes_relations
+    return dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations
 
 
 # Methods to obtain different parts of the sentence
@@ -278,64 +270,6 @@ def get_keywords(text):
     for phrase in doc._.phrases[:10]:
         print(phrase.text)
 
-def get_main_keyword(text):
-    print('Extracting main keyword...')
-    tic = time()
-    text = text.lower()
-    # load a spaCy model, depending on language, scale, etc.
-    nlp = spacy.load("en_core_web_trf")
-    # add PyTextRank to the spaCy pipeline
-    nlp.add_pipe("textrank")
-    doc = nlp(text)
-
-    print('Keyword extraction time: {} s'.format(round(time()-tic,3)))
-
-    return doc._.phrases[0].text
-
-    # examine the top-ranked phrases in the document
-    for phrase in doc._.phrases[:10]:
-        print(phrase.text)
-
-
-def top_sentence(text, limit):
-    nlp = spacy.load('en_core_web_trf')
-    keyword = []
-    pos_tag = ['PROPN', 'ADJ', 'NOUN', 'VERB']
-    # doc = nlp(text.lower())
-    doc = nlp(text)
-    for token in doc:
-        if(token.text in nlp.Defaults.stop_words or token.text in punctuation):
-            continue
-        if(token.pos_ in pos_tag):
-            keyword.append(token.text)
-    
-    freq_word = Counter(keyword)
-    max_freq = Counter(keyword).most_common(1)[0][1]
-    for w in freq_word:
-        freq_word[w] = (freq_word[w]/max_freq)
-        
-    sent_strength={}
-    for sent in doc.sents:
-        for word in sent:
-            if word.text in freq_word.keys():
-                if sent in sent_strength.keys():
-                    sent_strength[sent]+=freq_word[word.text]
-                else:
-                    sent_strength[sent]=freq_word[word.text]
-    
-    summary = []
-    
-    sorted_x = sorted(sent_strength.items(), key=lambda kv: kv[1], reverse=True)
-    
-    counter = 0
-    for i in range(len(sorted_x)):
-        summary.append(str(sorted_x[i][0]).capitalize())
-
-        counter += 1
-        if(counter >= limit):
-            break
-            
-    return ' '.join(summary)
 
 if __name__ == '__main__':
     run_conceptual_maps()
