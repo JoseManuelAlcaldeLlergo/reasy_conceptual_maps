@@ -29,12 +29,11 @@ def run_conceptual_maps(data):
 
     dict_idNodes_nodes = {}
     dict_idNodes_relations = {}
-    dict_idRealtions_relations = {}
 
     # Title of the map (ask to user?)
     origin_name = 'ORIGIN'
     dict_idNodes_nodes['ORIGIN'] = origin_name
-    dict_idNodes_relations['ORIGIN'] = []
+    dict_idNodes_relations['ORIGIN'] = [[],'']
 
     f = open(data)
 
@@ -50,8 +49,7 @@ def run_conceptual_maps(data):
 
         # Link origin with the section node
         title_node_id = 's_'+str(i_sec)
-        dict_idNodes_relations['ORIGIN'].append(title_node_id)
-        dict_idRealtions_relations[('ORIGIN', title_node_id)] = ''
+        dict_idNodes_relations['ORIGIN'][0].append(title_node_id)
 
         detected_lang = detect(sec)
 
@@ -102,53 +100,15 @@ def run_conceptual_maps(data):
         en_sentences = split_text(summarize, 'en')
         
         # Filling dictionaries for composing the map
-        dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations = obtaining_nodes_relations(
-            sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations)
+        dict_idNodes_nodes, dict_idNodes_relations = obtaining_nodes_relations(
+            sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations)
 
         i_sec += 1
 
     # Generating an output to check nodes and relations are correct
     generate_simple_map(detected_lang, dict_idNodes_nodes,
-                        dict_idNodes_relations, dict_idRealtions_relations)
+                        dict_idNodes_relations)
 
-
-def summarize_text(text):
-    nlp = spacy.load('en_core_web_trf')
-
-    tr = TextRank()
-    nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
-
-    doc = nlp(text)
-
-    sent_bounds = [ [s.start, s.end, set([])] for s in doc.sents ]
-
-    limit_phrases = 4
-
-    phrase_id = 0
-    unit_vector = []
-
-    for p in doc._.phrases:
-        print(phrase_id, p.text, p.rank)
-        
-        unit_vector.append(p.rank)
-        
-        for chunk in p.chunks:
-            print(" ", chunk.start, chunk.end)
-            
-            for sent_start, sent_end, sent_vector in sent_bounds:
-                if chunk.start >= sent_start and chunk.start <= sent_end:
-                    print(" ", sent_start, chunk.start, chunk.end, sent_end)
-                    sent_vector.add(phrase_id)
-                    break
-
-        phrase_id += 1
-
-        if phrase_id == limit_phrases:
-            break
-
-    for sent in doc.sents:
-        print(sent)
-    return text
 
 def split_text(text, lang):
     if lang == 'es':
@@ -165,18 +125,18 @@ def split_text(text, lang):
     return sentences
 
 
-def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations):
+def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relations):
     for k, v in dict_idNodes_relations.items():
-        for i in range(len(v)):
-            if str(dict_idNodes_nodes[v[i]]) != "":
+        for i in range(len(v[0])):
+            if str(dict_idNodes_nodes[v[0][i]]) != "":
                 node_src = str(dict_idNodes_nodes[k])
-                relation_name = str(dict_idRealtions_relations[(k, v[i])])
-                node_dst = str(dict_idNodes_nodes[v[i]])
+                relation_name = str(v[1])
+                node_dst = str(dict_idNodes_nodes[v[0][i]])
                 print('\n', GoogleTranslator(source='auto', target=detected_lang).translate(node_src), '--[', GoogleTranslator(
                     source='auto', target=detected_lang).translate(relation_name), ']-->', GoogleTranslator(source='auto', target=detected_lang).translate(node_dst))
 
 
-def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations):
+def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations):
     dict_nodes_idNodes = {}
 
     id = 0
@@ -185,7 +145,7 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
     # Create the source node of the section.
     title_node_id = 's_'+str(i_sec)
     dict_nodes_idNodes[sec_title] = title_node_id
-    dict_idNodes_relations[title_node_id] = []
+    dict_idNodes_relations[title_node_id] = [[],'']
     
     nlp = spacy.load('en_core_web_trf')
 
@@ -202,9 +162,7 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
             # Add the node to the node dict
             dict_nodes_idNodes[subject_phrase] = new_node_id
             # Connect the new node with the source section node
-            dict_idNodes_relations[title_node_id].append(new_node_id)
-            # Naming the relation as ''
-            dict_idRealtions_relations[(title_node_id, new_node_id)] = ''
+            dict_idNodes_relations[title_node_id][0].append(new_node_id)
             id += 1
 
         # The second node obtained from the sentence would be composed by the rest of
@@ -215,15 +173,15 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
             id += 1
 
         if not (dict_nodes_idNodes[subject_phrase] in dict_idNodes_relations):
-            dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]] = []
+            dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]] = [[],'']
 
-        dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]].append(
+        dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]][0].append(
             dict_nodes_idNodes[object_phrase])
-        current_rel = "r_"+str(id_relations)
 
         root, root_position_start = get_verb_and_auxs(doc)
-        dict_idRealtions_relations[(
-            dict_nodes_idNodes[subject_phrase], dict_nodes_idNodes[object_phrase])] = root
+        # dict_idRealtions_relations[(
+        #     dict_nodes_idNodes[subject_phrase], dict_nodes_idNodes[object_phrase])] = root
+        dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]][1] = root
 
         id_relations += 1
 
@@ -231,7 +189,7 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
     for k, v in dict_nodes_idNodes.items():
         dict_idNodes_nodes[v] = k
 
-    return dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations
+    return dict_idNodes_nodes, dict_idNodes_relations
 
 
 # Methods to obtain different parts of the sentence
@@ -318,7 +276,8 @@ def top_sentence(text, limit):
     nlp = spacy.load('en_core_web_trf')
     keyword = []
     pos_tag = ['PROPN', 'ADJ', 'NOUN', 'VERB']
-    doc = nlp(text.lower())
+    # doc = nlp(text.lower())
+    doc = nlp(text)
     for token in doc:
         if(token.text in nlp.Defaults.stop_words or token.text in punctuation):
             continue

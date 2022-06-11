@@ -1,4 +1,9 @@
+from time import time
 import spacy
+# from pytextrank import TextRank
+from collections import Counter
+from string import punctuation
+
 
 
 # Library to implement BERT
@@ -16,7 +21,6 @@ from deep_translator import GoogleTranslator
 import click
 
 # CLI parameters
-
 
 @click.command()
 @click.option('--data', '-d', default='data/input.txt', required=False, show_default=True,
@@ -41,83 +45,124 @@ def run_conceptual_maps(data):
     nltk.download('punkt')
 
     i_sec = 0
-    for input in sections:
+    for sec in sections:
+
 
         # Link origin with the section node
         title_node_id = 's_'+str(i_sec)
         dict_idNodes_relations['ORIGIN'].append(title_node_id)
-        dict_idRealtions_relations[('ORIGIN',title_node_id)] = ''
+        dict_idRealtions_relations[('ORIGIN', title_node_id)] = ''
 
-        detected_lang = detect(input)
+        detected_lang = detect(sec)
 
-        if detected_lang == 'es':
-            tokenizer = nltk.data.load('tokenizers/punkt/spanish.pickle')
-        elif detected_lang == 'it':
-            tokenizer = nltk.data.load('tokenizers/punkt/italian.pickle')
-        elif detected_lang == 'en':
-            tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-        elif detected_lang == 'fr':
-            tokenizer = nltk.data.load('tokenizers/punkt/french.pickle')
-
-        # We won't need to separate English text yet
-        # elif detected_lang == 'en':
-        #   tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-
-        # if detected_lang != 'en':
-        sentences = tokenizer.tokenize(input)
-        # print ('\n-----\n'.join(tokenizer.tokenize(input)))
+        sentences = split_text(sec, detected_lang)
 
         # The title of the section should be the first word in the list
         sec_title = sentences[0]
-
-        # print(sentences)
+        
+        print('--------',sec_title,'--------')
 
         translations = []
 
-        # If the detected language is English we won't need to translate it
-        # if detected_lang != 'en':
         # Splitting the text into sentences we ensure not reaching the character limit of Google Translator
         print('Translating text into English...')
-        for sent in sentences[1:]:  # [1:] because we don't need to translate the title
-            translations.append(GoogleTranslator(
-                source='auto', target='en').translate(sent))
-        # print(translations)
+        tic = time()
+        
+        # If we would work with so long sections we should translate sentence by sentence
+        # for sent in sentences[1:]:  # [1:] because we don't need to translate the title
+        #     translations.append(GoogleTranslator(
+        #         source='auto', target='en').translate(sent))
 
-        # If the detected language is English we have it already joined from input
-        # if detected_lang != 'en':
-        full_translation = " ".join(
-            w for word in translations for w in word.split())
-        # else:
-        #     full_translation = input
+        # full_translation = " ".join(
+        #     w for word in translations for w in word.split())
 
-        # print(full_translation)
+        # However it seems that with the current idea sections are not so long, and translating th whole text is
+        # quite faster
 
-        bert_summarizer = Summarizer()
+        sec_text = " ".join(w for word in sentences[1:] for w in word.split())
+        full_translation = GoogleTranslator(source='auto', target='en').translate(sec)
 
-        # Used for testing the annalysis performance
-        full_translation_test = 'Artificial neural networks (ANNs), usually simply called neural networks (NNs), are computing systems inspired by the biological neural networks that constitute animal brains. An ANN is based on a collection of connected units or nodes called artificial neurons, which loosely model the neurons in a biological brain. Each connection, like the synapses in a biological brain, can transmit a signal to other neurons. An artificial neuron receives a signal then processes it and can signal neurons connected to it. The "signal" at a connection is a real number, and the output of each neuron is computed by some non-linear function of the sum of its inputs. The connections are called edges. Neurons and edges typically have a weight that adjusts as learning proceeds. The weight increases or decreases the strength of the signal at a connection. Neurons may have a threshold such that a signal is sent only if the aggregate signal crosses that threshold. Typically, neurons are aggregated into layers. Different layers may perform different transformations on their inputs. Signals travel from the first layer (the input layer), to the last layer (the output layer), possibly after traversing the layers multiple times.'
+        print('Translation time: {} s'.format(round(time()-tic,3)))
+
+        tic = time()
+        # bert_summarizer = Summarizer()
 
         resolved_doc = full_translation
         # print(len(resolved_doc.split()))
         print('Summarizing text...')
-        summarize = bert_summarizer(
-            resolved_doc, ratio=0.2)  # Specified with ratio
-        # print(summarize, len(summarize.split()))
+        # Summarizing to a 20% of the original
+        # summarize = bert_summarizer(resolved_doc, ratio=0.2)
+        # summarize = summarize_text(resolved_doc)
+        summarize = top_sentence(resolved_doc,5)
+
+
+        print('Summarization time: {} s'.format(round(time()-tic,3)))
 
         # Splitting English summarized text
-        tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-
-        en_sentences = tokenizer.tokenize(summarize)
-        # print ('\n-----\n'.join(tokenizer.tokenize(summarize)))
-
+        en_sentences = split_text(summarize, 'en')
+        
+        # Filling dictionaries for composing the map
         dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations = obtaining_nodes_relations(
             sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations)
 
-
         i_sec += 1
-    
+
+    # Generating an output to check nodes and relations are correct
     generate_simple_map(detected_lang, dict_idNodes_nodes,
                         dict_idNodes_relations, dict_idRealtions_relations)
+
+
+def summarize_text(text):
+    nlp = spacy.load('en_core_web_trf')
+
+    tr = TextRank()
+    nlp.add_pipe(tr.PipelineComponent, name="textrank", last=True)
+
+    doc = nlp(text)
+
+    sent_bounds = [ [s.start, s.end, set([])] for s in doc.sents ]
+
+    limit_phrases = 4
+
+    phrase_id = 0
+    unit_vector = []
+
+    for p in doc._.phrases:
+        print(phrase_id, p.text, p.rank)
+        
+        unit_vector.append(p.rank)
+        
+        for chunk in p.chunks:
+            print(" ", chunk.start, chunk.end)
+            
+            for sent_start, sent_end, sent_vector in sent_bounds:
+                if chunk.start >= sent_start and chunk.start <= sent_end:
+                    print(" ", sent_start, chunk.start, chunk.end, sent_end)
+                    sent_vector.add(phrase_id)
+                    break
+
+        phrase_id += 1
+
+        if phrase_id == limit_phrases:
+            break
+
+    for sent in doc.sents:
+        print(sent)
+    return text
+
+def split_text(text, lang):
+    if lang == 'es':
+        tokenizer = nltk.data.load('tokenizers/punkt/spanish.pickle')
+    elif lang == 'it':
+        tokenizer = nltk.data.load('tokenizers/punkt/italian.pickle')
+    elif lang == 'en':
+        tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    elif lang == 'fr':
+        tokenizer = nltk.data.load('tokenizers/punkt/french.pickle')
+
+    sentences = tokenizer.tokenize(text)
+
+    return sentences
 
 
 def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations):
@@ -133,9 +178,6 @@ def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relation
 
 def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations):
     dict_nodes_idNodes = {}
-    # dict_idNodes_relations = {}
-    # dict_idRealtions_relations = {}
-    # dict_idRealtions_verb = {}
 
     id = 0
     id_relations = 0
@@ -144,17 +186,11 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
     title_node_id = 's_'+str(i_sec)
     dict_nodes_idNodes[sec_title] = title_node_id
     dict_idNodes_relations[title_node_id] = []
-
+    
     nlp = spacy.load('en_core_web_trf')
 
-    en_sentences_test = ["Juan has a new ball", "a new ball is red"]
     for sentence in en_sentences:
-        # print('----', sentence, '----')
         doc = nlp(sentence)
-
-        # print_token_dependences(doc)
-        # for token in doc:
-        #   print(token.text, token.dep_, token.pos_)
 
         # Each new subject will be a new node
         subject_phrase = get_subject_phrase(doc)
@@ -168,12 +204,11 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
             # Connect the new node with the source section node
             dict_idNodes_relations[title_node_id].append(new_node_id)
             # Naming the relation as ''
-            dict_idRealtions_relations[(title_node_id,new_node_id)] = ''
+            dict_idRealtions_relations[(title_node_id, new_node_id)] = ''
             id += 1
 
         # The second node obtained from the sentence would be composed by the rest of
         # the sentence meaning (not exactly the predicate)
-        # object_phrase = get_object_phrase(doc)
         object_phrase = get_predicate(doc)
         if not object_phrase in dict_nodes_idNodes:
             dict_nodes_idNodes[object_phrase] = title_node_id+'_n_'+str(id)
@@ -182,41 +217,25 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
         if not (dict_nodes_idNodes[subject_phrase] in dict_idNodes_relations):
             dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]] = []
 
-        # print("a",dict_nodes_idNodes[subject_phrase], "añado", dict_nodes_idNodes[object_phrase])
         dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]].append(
             dict_nodes_idNodes[object_phrase])
         current_rel = "r_"+str(id_relations)
 
-        # root, root_position_start = get_root_phrase(doc)
         root, root_position_start = get_verb_and_auxs(doc)
         dict_idRealtions_relations[(
             dict_nodes_idNodes[subject_phrase], dict_nodes_idNodes[object_phrase])] = root
 
-        # dict_idRealtions_verb[current_rel] = root
-
         id_relations += 1
 
-        # print("subject: ",subject_phrase)
-        # print("verb: ",root, root_position_start)
-        # print("rest of the sentence:", doc[root_position_start+1:-1])
-        # print("object: ",object_phrase)
-        # print("prep: ",get_prepositional_phrase_objs(doc))
-
     # Change values for keys and stores in a new dictionary
-    # dict_idNodes_nodes = dict((v, k) for k, v in dict_nodes_idNodes.items())
     for k, v in dict_nodes_idNodes.items():
         dict_idNodes_nodes[v] = k
-    # print(dict_idNodes_nodes)# print(dict_nodes_idNodes.keys())
-    # print(dict_idNodes_relations)
-    # print(dict_idRealtions_relations)
-    # print(dict_idRealtions_verb)
 
     return dict_idNodes_nodes, dict_idNodes_relations, dict_idRealtions_relations
 
+
 # Methods to obtain different parts of the sentence
 # Extracting the sentence subjects
-
-
 def get_subject_phrase(doc):
     returned_subjects = []
     for token in doc:
@@ -294,6 +313,46 @@ def get_prepositional_phrase_objs(doc):
 def print_token_dependences(doc):
     for token in doc:
         print(token.text, token.dep_, token.pos)
+
+def top_sentence(text, limit):
+    nlp = spacy.load('en_core_web_trf')
+    keyword = []
+    pos_tag = ['PROPN', 'ADJ', 'NOUN', 'VERB']
+    # doc = nlp(text.lower())
+    doc = nlp(text)
+    for token in doc:
+        if(token.text in nlp.Defaults.stop_words or token.text in punctuation):
+            continue
+        if(token.pos_ in pos_tag):
+            keyword.append(token.text)
+    
+    freq_word = Counter(keyword)
+    max_freq = Counter(keyword).most_common(1)[0][1]
+    for w in freq_word:
+        freq_word[w] = (freq_word[w]/max_freq)
+        
+    sent_strength={}
+    for sent in doc.sents:
+        for word in sent:
+            if word.text in freq_word.keys():
+                if sent in sent_strength.keys():
+                    sent_strength[sent]+=freq_word[word.text]
+                else:
+                    sent_strength[sent]=freq_word[word.text]
+    
+    summary = []
+    
+    sorted_x = sorted(sent_strength.items(), key=lambda kv: kv[1], reverse=True)
+    
+    counter = 0
+    for i in range(len(sorted_x)):
+        summary.append(str(sorted_x[i][0]).capitalize())
+
+        counter += 1
+        if(counter >= limit):
+            break
+            
+    return ' '.join(summary)
 
 
 if __name__ == '__main__':
