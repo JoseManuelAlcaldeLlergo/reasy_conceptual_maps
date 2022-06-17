@@ -104,7 +104,7 @@ def run_conceptual_maps(data):
         
         # Filling dictionaries for composing the map
         dict_idNodes_nodes, dict_idNodes_relations = obtaining_nodes_relations_keywords(
-            sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations)
+            sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, detected_lang)
 
         i_sec += 1
 
@@ -127,18 +127,17 @@ def split_text(text, lang):
     return sentences
 
 
-def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relations):
+def generate_simple_map(dict_idNodes_nodes, dict_idNodes_relations):
     for k, v in dict_idNodes_relations.items():
         for i in range(len(v[0])):
             if str(dict_idNodes_nodes[v[0][i]]) != "":
                 node_src = str(dict_idNodes_nodes[k])
                 relation_name = str(v[1])
                 node_dst = str(dict_idNodes_nodes[v[0][i]])
-                print('\n', GoogleTranslator(source='auto', target=detected_lang).translate(node_src), '--[', GoogleTranslator(
-                    source='auto', target=detected_lang).translate(relation_name), ']-->', GoogleTranslator(source='auto', target=detected_lang).translate(node_dst))
+                print('\n', node_src, '--[', relation_name, ']-->', node_dst)
 
 
-def obtaining_nodes_relations_keywords(sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations):
+def obtaining_nodes_relations_keywords(sec_title, i_sec, en_sentences, dict_idNodes_nodes, dict_idNodes_relations, lan):
     dict_nodes_idNodes = {}
 
     id = 0
@@ -155,6 +154,7 @@ def obtaining_nodes_relations_keywords(sec_title, i_sec, en_sentences, dict_idNo
 
         # Each new keyword could be a new node
         source_node = get_main_keyword(sentence)
+        source_node = GoogleTranslator(source='auto', target=lan).translate(source_node)
         
 
         # the same keyword could be in different sentences, but we should be keep in
@@ -168,6 +168,7 @@ def obtaining_nodes_relations_keywords(sec_title, i_sec, en_sentences, dict_idNo
             id += 1
 
         dest_node = sentence
+        GoogleTranslator(source='auto', target=lan).translate(dest_node)
         if not dest_node in dict_nodes_idNodes:
             dict_nodes_idNodes[dest_node] = title_node_id+'_n_'+str(id)
             id += 1
@@ -209,7 +210,7 @@ def get_object_phrase(doc):
             subtree = list(token.subtree)
             start = subtree[0].i
             end = subtree[-1].i + 1
-            return str(doc[start:end])
+            return doc[start:end].text
 
 # Extracting the sentence verb
 
@@ -249,7 +250,7 @@ def get_predicate(doc):
         # print(token, token.dep_)
         if ("ROOT" in token.dep_):
             # There is only a root so return directly
-            return doc[token.i + 1: -1]
+            return doc[token.i + 1: -1].text
 
 
 def get_prepositional_phrase_objs(doc):

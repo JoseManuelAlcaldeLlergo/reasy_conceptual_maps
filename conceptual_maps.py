@@ -125,7 +125,7 @@ def split_text(text, lang):
     return sentences
 
 
-def generate_simple_map(detected_lang, dict_idNodes_nodes, dict_idNodes_relations):
+def generate_simple_map(dict_idNodes_nodes, dict_idNodes_relations):
     for k, v in dict_idNodes_relations.items():
         for i in range(len(v[0])):
             if str(dict_idNodes_nodes[v[0][i]]) != "":
