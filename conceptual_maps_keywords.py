@@ -290,11 +290,9 @@ def get_main_keyword(text):
 
     print('Keyword extraction time: {} s'.format(round(time()-tic,3)))
 
+    # Returning only the top ranked word
     return doc._.phrases[0].text
 
-    # examine the top-ranked phrases in the document
-    for phrase in doc._.phrases[:10]:
-        print(phrase.text)
 
 
 def top_sentence(text, limit):
