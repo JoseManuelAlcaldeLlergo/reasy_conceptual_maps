@@ -106,8 +106,7 @@ def run_conceptual_maps(data):
         i_sec += 1
 
     # Generating an output to check nodes and relations are correct
-    generate_simple_map(detected_lang, dict_idNodes_nodes,
-                        dict_idNodes_relations)
+    generate_simple_map(dict_idNodes_nodes, dict_idNodes_relations)
 
 
 def split_text(text, lang):
@@ -153,6 +152,9 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
 
         # Each new subject will be a new node
         subject_phrase = get_subject_phrase(doc)
+        if subject_phrase == "":
+            # if there is not subject we skip this sentence for now
+            continue
         subject_phrase = GoogleTranslator(source='auto', target=lan).translate(subject_phrase)
 
         # the same subject could be in different sentences, but we should be keep in
@@ -205,32 +207,19 @@ def get_subject_phrase(doc):
             start = subtree[0].i
             end = subtree[-1].i + 1
             return str(doc[start:end])
-    return None
+    return ""
 
-# Extracting the sentence objects
-
-
-def get_object_phrase(doc):
-    for token in doc:
-        print(token, token.dep_)
-        if ("dobj" in token.dep_):
-            subtree = list(token.subtree)
-            start = subtree[0].i
-            end = subtree[-1].i + 1
-            return doc[start:end].text
-
-# Extracting the sentence verb
-
-
-def get_root_phrase(doc):
-    res = ""
+# Extracting the "predicate" (not exactly) from a sentence
+def get_predicate(doc):
     for token in doc:
         # print(token, token.dep_)
         if ("ROOT" in token.dep_):
             # There is only a root so return directly
-            return token.text, token.i
+            return doc[token.i + 1: -1].text
+    
+    return ""
 
-
+# Extracting the sentence verb
 def get_verb_and_auxs(doc):
     neg = ""
     aux = ""
@@ -247,28 +236,7 @@ def get_verb_and_auxs(doc):
 
             # There is only a root so return directly
             return (str(aux)+" "+str(neg)+" "+token.text).lstrip(), token.i
-
-# Extracting the "predicate" (not exactly) from a sentence
-
-
-def get_predicate(doc):
-    res = ""
-    for token in doc:
-        # print(token, token.dep_)
-        if ("ROOT" in token.dep_):
-            # There is only a root so return directly
-            return doc[token.i + 1: -1].text
-
-
-def get_prepositional_phrase_objs(doc):
-    prep_spans = []
-    for token in doc:
-        if ("pobj" in token.dep_):
-            subtree = list(token.subtree)
-            start = subtree[0].i
-            end = subtree[-1].i + 1
-            prep_spans.append(doc[start:end])
-    return prep_spans
+    return ""
 
 
 def print_token_dependences(doc):

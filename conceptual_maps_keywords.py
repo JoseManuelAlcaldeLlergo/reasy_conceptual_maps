@@ -198,7 +198,7 @@ def get_subject_phrase(doc):
             start = subtree[0].i
             end = subtree[-1].i + 1
             return str(doc[start:end])
-    return None
+    return ""
 
 # Extracting the sentence objects
 
