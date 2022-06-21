@@ -1,4 +1,5 @@
 from collections import Counter
+from math import ceil
 from string import punctuation
 from time import time
 import spacy
@@ -57,6 +58,8 @@ def run_conceptual_maps(data):
 
         sentences = split_text(sec, detected_lang)
 
+        n_sentences = len(sentences)
+
         # The title of the section should be the first word in the list
         sec_title = sentences[0]
         
@@ -90,9 +93,12 @@ def run_conceptual_maps(data):
         resolved_doc = full_translation
         # print(len(resolved_doc.split()))
         print('Summarizing text...')
+
+        p = 0.2
         # Summarizing to a 20% of the original
-        # summarize = bert_summarizer(resolved_doc, ratio=0.2)
-        # summarize = summarize_text(resolved_doc)
+        n_summary_sentences = ceil(p*n_sentences)
+        summarize = top_sentence(resolved_doc,n_summary_sentences)
+
         # Summarizing to 3 sentences from the original
         summarize = top_sentence(resolved_doc,3)
 

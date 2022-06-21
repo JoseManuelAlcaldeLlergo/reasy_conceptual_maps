@@ -1,3 +1,4 @@
+from math import ceil
 from time import time
 import spacy
 # from pytextrank import TextRank
@@ -55,6 +56,8 @@ def run_conceptual_maps(data):
 
         sentences = split_text(sec, detected_lang)
 
+        n_sentences = len(sentences)-1
+
         # The title of the section should be the first word in the list
         sec_title = sentences[0]
         
@@ -83,15 +86,18 @@ def run_conceptual_maps(data):
         print('Translation time: {} s'.format(round(time()-tic,3)))
 
         tic = time()
-        # bert_summarizer = Summarizer()
 
         resolved_doc = full_translation
-        # print(len(resolved_doc.split()))
         print('Summarizing text...')
-        # Summarizing to a 20% of the original
-        # summarize = bert_summarizer(resolved_doc, ratio=0.2)
-        # summarize = summarize_text(resolved_doc)
-        summarize = top_sentence(resolved_doc,5)
+
+        p = 0.3
+        # Summarizing to a 30% of the original
+        n_summary_sentences = ceil(p*n_sentences)
+        summarize = top_sentence(resolved_doc,n_summary_sentences)
+
+
+        # 5 sentences to summarize
+        # summarize = top_sentence(resolved_doc,5)
 
 
         print('Summarization time: {} s'.format(round(time()-tic,3)))
