@@ -24,7 +24,7 @@ import click
 # CLI parameters
 
 @click.command()
-@click.option('--data', '-d', default='data/input.txt', required=False, show_default=True,
+@click.option('--data', '-d', default='data/input_angelo.txt', required=False, show_default=True,
               help=u'Input text file route')
 def run_conceptual_maps(data):
 
@@ -58,7 +58,7 @@ def run_conceptual_maps(data):
 
         n_sentences = len(sentences)-1
 
-        # The title of the section should be the first word in the list
+        # The title of the section should be the first word in the list 
         sec_title = sentences[0]
         
         print('--------',sec_title,'--------')
@@ -93,7 +93,8 @@ def run_conceptual_maps(data):
         p = 0.3
         # Summarizing to a 30% of the original
         n_summary_sentences = ceil(p*n_sentences)
-        summarize = top_sentence(resolved_doc,n_summary_sentences)
+        # summarize = top_sentence(resolved_doc,n_summary_sentences)
+        summarize = top_sentence(resolved_doc,5)
 
 
         # 5 sentences to summarize
@@ -157,11 +158,11 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
         doc = nlp(sentence)
 
         # Each new subject will be a new node
-        subject_phrase = get_subject_phrase(doc)
-        if subject_phrase == "":
+        subject_phrase_en = get_subject_phrase(doc)
+        if subject_phrase_en == "":
             # if there is not subject we skip this sentence for now
             continue
-        subject_phrase = GoogleTranslator(source='auto', target=lan).translate(subject_phrase)
+        subject_phrase = GoogleTranslator(source='auto', target=lan).translate(subject_phrase_en)
 
         # the same subject could be in different sentences, but we should be keep in
         # mind that it would still be the same node but with several relationships
@@ -172,11 +173,15 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
             # Connect the new node with the source section node
             dict_idNodes_relations[title_node_id][0].append(new_node_id)
             id += 1
-
+        
+        # The relation will be composed by the verb
+        root_en = get_verb_and_auxs(doc)
+        
         # The second node obtained from the sentence would be composed by the rest of
         # the sentence meaning (not exactly the predicate)
-        object_phrase = get_predicate(doc)
-        object_phrase = GoogleTranslator(source='auto', target=lan).translate(object_phrase)
+        # object_phrase_en = get_predicate(doc)
+        object_phrase_en = get_rest_phrase(doc, subject_phrase_en, root_en)
+        object_phrase = GoogleTranslator(source='auto', target=lan).translate(object_phrase_en)
 
         if not object_phrase in dict_nodes_idNodes:
             dict_nodes_idNodes[object_phrase] = title_node_id+'_n_'+str(id)
@@ -188,10 +193,10 @@ def obtaining_nodes_relations(sec_title, i_sec, en_sentences, dict_idNodes_nodes
         dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]][0].append(
             dict_nodes_idNodes[object_phrase])
 
-        root, root_position_start = get_verb_and_auxs(doc)
-        root = GoogleTranslator(source='auto', target=lan).translate(root)
+        
         # dict_idRealtions_relations[(
         #     dict_nodes_idNodes[subject_phrase], dict_nodes_idNodes[object_phrase])] = root
+        root = GoogleTranslator(source='auto', target=lan).translate(root_en)
         dict_idNodes_relations[dict_nodes_idNodes[subject_phrase]][1] = root
 
         id_relations += 1
@@ -220,10 +225,26 @@ def get_predicate(doc):
     for token in doc:
         # print(token, token.dep_)
         if ("ROOT" in token.dep_):
-            # There is only a root so return directly
             return doc[token.i + 1: -1].text
     
     return ""
+
+def get_object_phrase(doc):
+    for token in doc:
+        print(token, token.dep_)
+        if ("dobj" in token.dep_):
+            subtree = list(token.subtree)
+            start = subtree[0].i
+            end = subtree[-1].i + 1
+            return str(doc[start:end])
+
+
+def get_rest_phrase(doc,subj,verb):
+    sentence = doc.text
+    sentence = sentence.replace(subj,"")
+    sentence = sentence.replace(verb,"")
+
+    return sentence
 
 # Extracting the sentence verb
 def get_verb_and_auxs(doc):
@@ -241,7 +262,7 @@ def get_verb_and_auxs(doc):
                     neg = i
 
             # There is only a root so return directly
-            return (str(aux)+" "+str(neg)+" "+token.text).lstrip(), token.i
+            return (str(aux)+" "+str(neg)+" "+token.text).lstrip()#, token.i
     return ""
 
 
