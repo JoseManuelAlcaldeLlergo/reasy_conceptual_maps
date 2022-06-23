@@ -4,7 +4,8 @@ import spacy
 # from pytextrank import TextRank
 from collections import Counter
 from string import punctuation
-
+# Library to extract keywords
+import pytextrank
 
 
 # Library to implement BERT
@@ -61,6 +62,7 @@ def run_conceptual_maps(data):
         # The title of the section should be the first word in the list 
         sec_title = sentences[0]
         
+        
         print('--------',sec_title,'--------')
 
         translations = []
@@ -85,16 +87,20 @@ def run_conceptual_maps(data):
 
         print('Translation time: {} s'.format(round(time()-tic,3)))
 
+        # If there is not section title (or if it is too long) we take the keyword as title
+        if len(sec_title) > 40:
+            sec_title_en = get_main_keyword(full_translation)
+            sec_title = GoogleTranslator(source='auto', target=detected_lang).translate(sec_title_en)
+
         tic = time()
 
-        resolved_doc = full_translation
         print('Summarizing text...')
 
         p = 0.3
         # Summarizing to a 30% of the original
         n_summary_sentences = ceil(p*n_sentences)
         # summarize = top_sentence(resolved_doc,n_summary_sentences)
-        summarize = top_sentence(resolved_doc,5)
+        summarize = top_sentence(full_translation,5)
 
 
         # 5 sentences to summarize
@@ -269,6 +275,23 @@ def get_verb_and_auxs(doc):
 def print_token_dependences(doc):
     for token in doc:
         print(token.text, token.dep_, token.pos)
+
+
+def get_main_keyword(text):
+    print('Extracting main keyword...')
+    tic = time()
+    text = text.lower()
+    # load a spaCy model, depending on language, scale, etc.
+    nlp = spacy.load("en_core_web_trf")
+    # add PyTextRank to the spaCy pipeline
+    nlp.add_pipe("textrank")
+    doc = nlp(text)
+
+    print('Keyword extraction time: {} s'.format(round(time()-tic,3)))
+
+    # Returning only the top ranked word
+    return doc._.phrases[0].text
+
 
 def top_sentence(text, limit):
     nlp = spacy.load('en_core_web_trf')
