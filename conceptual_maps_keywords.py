@@ -26,7 +26,7 @@ import click
 
 
 @click.command()
-@click.option('--data', '-d', default='data/input.txt', required=False, show_default=True,
+@click.option('--data', '-d', default='data/input_angelo.txt', required=False, show_default=True,
               help=u'Input text file route')
 def run_conceptual_maps(data):
 
@@ -63,7 +63,7 @@ def run_conceptual_maps(data):
         # The title of the section should be the first word in the list
         sec_title = sentences[0]
         
-        print('--------',sec_title,'--------')
+        print('-------- Section ',i_sec,'--------')
 
         translations = []
 
@@ -87,6 +87,13 @@ def run_conceptual_maps(data):
 
         print('Translation time: {} s'.format(round(time()-tic,3)))
 
+        # If there is not section title (or if it is too long) we take the keyword as title
+        if len(sec_title) > 40:
+            sec_title_en = get_main_keyword(full_translation)
+            sec_title = GoogleTranslator(source='auto', target=detected_lang).translate(sec_title_en)
+
+        print('Section title:',sec_title)
+
         tic = time()
         # bert_summarizer = Summarizer()
 
@@ -94,13 +101,13 @@ def run_conceptual_maps(data):
         # print(len(resolved_doc.split()))
         print('Summarizing text...')
 
-        p = 0.2
-        # Summarizing to a 20% of the original
+        p = 0.1
+        # Summarizing to a 10% of the original
         n_summary_sentences = ceil(p*n_sentences)
         summarize = top_sentence(resolved_doc,n_summary_sentences)
 
         # Summarizing to 3 sentences from the original
-        summarize = top_sentence(resolved_doc,3)
+        # summarize = top_sentence(resolved_doc,3)
 
 
         print('Summarization time: {} s'.format(round(time()-tic,3)))
@@ -115,8 +122,7 @@ def run_conceptual_maps(data):
         i_sec += 1
 
     # Generating an output to check nodes and relations are correct
-    generate_simple_map(detected_lang, dict_idNodes_nodes,
-                        dict_idNodes_relations)
+    generate_simple_map(dict_idNodes_nodes, dict_idNodes_relations)
 
 def split_text(text, lang):
     if lang == 'es':
@@ -174,7 +180,7 @@ def obtaining_nodes_relations_keywords(sec_title, i_sec, en_sentences, dict_idNo
             id += 1
 
         dest_node = sentence
-        GoogleTranslator(source='auto', target=lan).translate(dest_node)
+        dest_node = GoogleTranslator(source='auto', target=lan).translate(dest_node)
         if not dest_node in dict_nodes_idNodes:
             dict_nodes_idNodes[dest_node] = title_node_id+'_n_'+str(id)
             id += 1

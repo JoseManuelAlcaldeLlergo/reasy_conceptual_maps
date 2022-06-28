@@ -25,7 +25,7 @@ import click
 # CLI parameters
 
 @click.command()
-@click.option('--data', '-d', default='data/input_angelo.txt', required=False, show_default=True,
+@click.option('--data', '-d', default='data/input.txt', required=False, show_default=True,
               help=u'Input text file route')
 def run_conceptual_maps(data):
 
@@ -63,7 +63,7 @@ def run_conceptual_maps(data):
         sec_title = sentences[0]
         
         
-        print('--------',sec_title,'--------')
+        print('-------- Section ',i_sec,'--------')
 
         translations = []
 
@@ -91,6 +91,8 @@ def run_conceptual_maps(data):
         if len(sec_title) > 40:
             sec_title_en = get_main_keyword(full_translation)
             sec_title = GoogleTranslator(source='auto', target=detected_lang).translate(sec_title_en)
+
+        print('Section title:',sec_title)
 
         tic = time()
 
